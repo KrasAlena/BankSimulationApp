@@ -1,23 +1,22 @@
-import re
+import csv
 import logging
-from datetime import datetime
+
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S')
 
 
-logging.basicConfig(level=logging.DEBUG)
+def parse_txt(path_to_records: str) -> list:
+    bank_records = []
 
-def parse_txt():
-    with open('bank-records.txt', 'r') as file:
-        for line in file:
-            record = line.strip()
-            pattern = r'("[^"]+"|\S+)'
+    with open(path_to_records, newline='') as bank_rec:
+        csv_reader = csv.reader(bank_rec, delimiter=" ")
 
-            new_record = re.findall(pattern, record)
-            new_record = [rec.replace('"', '') for rec in new_record]
+        for row in csv_reader:
+            logging.debug(f'Command: {row[0]}, Parameters: {row[1:]}')
+            bank_records.append(row)
 
-            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S,%f')[:-3]
-            logging.debug('%s Command: %s, Parameters: %s', timestamp, [0], new_record[1:])
+    return bank_records
 
-            print(new_record)
 
-parse_txt()
+
 

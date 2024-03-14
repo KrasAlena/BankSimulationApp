@@ -1,10 +1,7 @@
-'''
-Create a BankAccount dataclass that has all the needed properties
-Create a BankAccountManager class that holds a list of all BankAccount instances created and performs all the appropriate operations on them
-For now, skip handling the TRANSFER operation
-For debugging, log the string representation of each account before and after the bank command action was taken.
-'''
+import csv
 import logging
+from dataclasses import dataclass
+from typing import List
 from conversion import CurrencyConversion
 
 
@@ -12,69 +9,115 @@ logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s. Comm
                                                 'parameters)s', datefmt='%Y-%m-%d %H:%M:%S,%')
 
 
+@dataclass
 class BankAccount:
-    def __init__(self, acc_id: str, owner_name: str, currency: str):
-        self.acc_id = acc_id
-        self.owner_name = owner_name
-        self.currency = currency
-        self.balance = 0
+    account_holder: str
+    account_id: int
+    account_balance: float
+    account_currency: str
 
 
-class BankAccountManager(BankAccount):
+class BankAccountManager:
+    def __init__(self):
+        self.accounts: List[BankAccount] = []
+        self.account_id = 1
+        self.conversion = CurrencyConversion()
 
-    @classmethod
-    def create_acc(cls, acc_id, owner_name, currency, balance=0):
-        with open('bank-records.txt', 'a') as file:
-            file.write(f'CREATE_ACC "{owner_name}" {balance} {currency}\n')
-        new_account = BankAccount(acc_id, owner_name, currency)
-        new_account.balance = balance
-        logging.debug('Created new account')
-        return new_account
+    def create_bank_account(self, account_holder: str, account_balance: float, account_currency: str):
+        new_account = BankAccount(account_holder, self.account_id, account_balance, account_currency)
+        self.accounts.append(new_account)
+        self.account_id += 1
 
-    def deposit(self, amount):
-        with open('bank-records.txt', 'a') as file:
-            file.write(f'DEPOSIT {self.acc_id} {amount}\n')
-        self.balance += amount
-        logging.debug('Deposited %s %s into account %s', amount, self.currency, self.acc_id)
-
-    def withdraw(self, amount):
-        if amount <= 0:
-            print('Invalid withdrawal amount')
-            return
-        if self.balance < amount:
-            print('Insufficient funds')
-            return
-        with open('bank-records.txt', 'a') as file:
-            file.write(f'WITHDRAW {self.acc_id} {amount}\n')
-        self.balance -= amount
-        logging.debug('Withdrawn %s %s from account %s', amount, self.currency, self.id)
-
-    @staticmethod
-    def transfer(acc1, acc2, amount):
-        if amount <= 0:
-            print('Invalid transfer amount')
-            return
-
-        if acc1.currency != acc2.currency:
-            conversion = CurrencyConversion()
-            converted_amount = conversion.convert_currency(amount, acc1.currency, acc2.currency)
-            if converted_amount is None:
-                print('Currency conversion not supported')
+    def deposit(self, account_id: str, amount: float):
+        for account in self.accounts:
+            if account.account_id == account_id:
+                account.account_balance += amount
                 return
-            acc1.balance -= amount
-            acc2.balance += converted_amount
+
+        logging.warning(f'This {account_id} is not available')
+
+    def withdraw(self, account_id: str, amount: float):
+        tax_withdraw = amount * 0.005
+        for account in self.accounts:
+            if account.account_id == account_id:
+                if account.account_balance >= amount + tax_withdraw:
+                    account.account_balance -= amount
+                    account.account_balance -= tax_withdraw
+                    return
+                else:
+                    logging.warning(f'You are trying to withdraw more than you have')
+                    return
+
+        logging.warning(f'This {account_id} is not available')
+
+    def transfer(self, from_account_id: str, to_account_id: str, amount: float):
+        from_account = self.get_account_by_id(from_account_id)
+        to_account = self.get_account_by_id(to_account_id)
+        if from_account and to_account:
+            if from_account.account_currency != to_account.account_currency:
+                converted_amount = self.conversion.convert_currency(amount, from_account.account_currency,
+                                                               to_account.account_currency)
+                if converted_amount is None:
+                    logging.warning('Currency conversion not supported')
+                    return
+                from_account.account_balance -= amount
+                to_account.account_balance += converted_amount
+            else:
+                from_account.account_balance -= amount
+                to_account.account_balance += amount
+            logging.debug(
+                f'Transferred {amount} from account {from_account_id} to account {to_account_id}')
         else:
-            acc1.balance -= amount
-            acc2.balance += amount
-        with open('bank-records.txt', 'a') as file:
-            file.write(f'TRANSFER {acc1.acc_id} {acc2.acc_id} {amount}\n')
-        logging.debug('Transferred %s %s from account %s to account %s', amount, acc1.currency, acc1.acc_id, acc2.acc_id)
+            logging.warning('One or both of the accounts specified in the TRANSFER command do not exist')
 
-    def delete_acc(self):
-        with open('bank-records.txt', 'a') as file:
-            file.write(f'DELETE_ACC {self.acc_id}\n')
-        logging.debug('Deleted account %s', self.acc_id)
-        del self
+    def delete_acc(self, account_id: int):
+        for account in self.accounts:
+            if account.account_id == account_id:
+                self.accounts.remove(account)
+                logging.info(f'Account with id {account_id} deleted successfully.')
+                return
+        logging.warning(f'Account with id {account_id} not found.')
 
-    def dump_accounts_to_csv(self):
-        pass
+    def get_account_by_id(self, account_id):
+        for account in self.accounts:
+            if account.account_id == account_id:
+                return account
+        return None
+
+    def process_records(self, records: list):
+        for record in records:
+            command = record[0]
+            if command == 'CREATE_ACC':
+                _, owner_name, balance, currency = record
+                self.create_bank_account(owner_name, float(balance), currency)
+            elif command == 'DEPOSIT':
+                _, account_id, amount = record
+                self.deposit(account_id, float(amount))
+            elif command == 'WITHDRAW':
+                _, account_id, amount = record
+                self.withdraw(account_id, float(amount))
+            elif command == 'DELETE_ACC':
+                _, account_id = record
+                self.delete_acc(account_id)
+            elif command == 'TRANSFER':
+                _, from_account_id, to_account_id, amount = record
+                self.transfer(from_account_id, to_account_id, float(amount))
+
+def main():
+    # Create an instance of BankAccountManager
+    account_manager = BankAccountManager()
+
+    # Create two accounts with initial balances
+    acc1 = account_manager.create_bank_account('Alice', 100, 'USD')
+    acc2 = account_manager.create_bank_account('Bob', 50, 'USD')
+
+    # Transfer funds from acc1 to acc2
+    account_manager.transfer(acc1.account_id, acc2.account_id, 30)
+
+    # Check the balances after the transfer
+    print(f"Balance of {acc1.account_holder}: {acc1.account_balance} {acc1.account_currency}")
+    print(f"Balance of {acc2.account_holder}: {acc2.account_balance} {acc2.account_currency}")
+
+
+if __name__ == '__main__':
+    main()
