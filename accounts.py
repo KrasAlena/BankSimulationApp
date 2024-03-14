@@ -27,6 +27,7 @@ class BankAccountManager:
         new_account = BankAccount(account_holder, self.account_id, account_balance, account_currency)
         self.accounts.append(new_account)
         self.account_id += 1
+        return new_account
 
     def deposit(self, account_id: str, amount: float):
         for account in self.accounts:
@@ -50,7 +51,7 @@ class BankAccountManager:
 
         logging.warning(f'This {account_id} is not available')
 
-    def transfer(self, from_account_id: str, to_account_id: str, amount: float):
+    def transfer(self, from_account_id: int, to_account_id: int, amount: float) -> object:
         from_account = self.get_account_by_id(from_account_id)
         to_account = self.get_account_by_id(to_account_id)
         if from_account and to_account:
@@ -104,19 +105,17 @@ class BankAccountManager:
                 self.transfer(from_account_id, to_account_id, float(amount))
 
 def main():
-    # Create an instance of BankAccountManager
     account_manager = BankAccountManager()
 
-    # Create two accounts with initial balances
-    acc1 = account_manager.create_bank_account('Alice', 100, 'USD')
+    acc1 = account_manager.create_bank_account('Alice', 100, 'EUR')
     acc2 = account_manager.create_bank_account('Bob', 50, 'USD')
 
     # Transfer funds from acc1 to acc2
     account_manager.transfer(acc1.account_id, acc2.account_id, 30)
 
     # Check the balances after the transfer
-    print(f"Balance of {acc1.account_holder}: {acc1.account_balance} {acc1.account_currency}")
-    print(f"Balance of {acc2.account_holder}: {acc2.account_balance} {acc2.account_currency}")
+    print(f'Balance of {acc1.account_holder}: {acc1.account_balance} {acc1.account_currency}')
+    print(f'Balance of {acc2.account_holder}: {acc2.account_balance} {acc2.account_currency}')
 
 
 if __name__ == '__main__':
